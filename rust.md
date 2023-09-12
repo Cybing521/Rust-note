@@ -59,7 +59,13 @@ cargo run
 
 cargo update
 
+### 2.4 cargo check
 
+```rust
+cargo check
+```
+
+cargo check 可以快速的检查一下代码是否编译通过。因此该命令速度非常快，能节省大量的编译时间
 
 ## 3 变量
 
@@ -1536,3 +1542,207 @@ fn expensive_test(){
 #### 集成测试中的子模块
 
 - tests目录下每个文件被编译成独自得crate文件
+
+## 13 闭包
+
+### 13. 1 闭包 使用闭包创建抽象行为
+
+#### 什么是闭包
+
+- 闭包：可以捕获其所在环境的匿名函数
+- 闭包：
+  - 是匿名函数
+  - 保存为变量、作为参数
+  - 可在一个地方创建闭包，然后在另一个上下文中调用闭包来完成运算
+  - 可从其定义的作用域捕获值
+
+```rust
+let expensive_closure =|num|{
+    println!("calculating slowly ...");
+    thread::sleep(Duration::from_secs(2));
+    num
+};
+```
+
+### 13.2 类型推断和标注
+
+- 闭包不要求标注参数和返回值的类型
+- 闭包通常很短小，只在狭小的上下文中工作，编译器通常能推断出类型
+- 可以手动添加类型标注
+
+```rust
+let expensive_closure =|num:u32|->u32{
+    println!("calculating slowly...");
+    therad::sleep(Duration::from_secs(2));
+    num
+};
+```
+
+#### 函数和闭包的定义语法
+
+```rust
+fn  add_one_v1 (x:u32) ->u32 {x+1}
+let add_one_v2=|x:u32| ->u32 {x+1};
+let add_one_v3=|x| 			 {x+1};
+let add_one_v4=|x|			  x+1;
+```
+
+- 注意：闭包的定义最终只会为参数/返回值推断出唯一具体的类型
+
+### 13.3 使用泛型和Fn Trait存储闭包
+
+```32
+struct Cacher<T>
+where
+	T:Fn(u32) ->u32,
+{
+	calculation:T,
+	value:Option<u32>,
+}	
+
+impl<T> Cacher<T>
+where
+	T:Fn(u32) ->u32,
+{
+	fn new(calculation :T) ->Cacher<T>{
+		Cacher{
+			calculation,
+			value:None,
+		}
+	}
+	
+	fn value(&mut self,arg:u32) ->u32{
+		match self.value{
+			Some(v)=>v,
+			None=>{
+				let v=(self.calculation)(arg);
+				self.value=Some(v);
+			}
+		}
+	}
+}
+```
+
+
+
+#### 使用缓存器（Cacher）实现的限制
+
+1. Cacher 实例假定针对不同的参数arg,value方法总会得到同样的值
+   1. 可以使用HashMap代替单个值
+      - key:arg 参数
+      - value：执行闭包的结果
+   2. 只能接收一个u32类型的参数和u32类型的返回值
+
+### 13.4 使用闭包捕获上下文
+
+- 闭包可以访问定义它的作用域内的变量，而普通函数则不能
+- 会产生内存开销
+
+#### 闭包从所在环境捕获值得方式
+
+- 与函数获得参数得三种方式一样
+  1. 取得所有权：FnOnce
+  2. 可变借用：FnMut
+  3. 不可变借用：Fn
+
+#### move关键字
+
+- 在参数列表使用move关键字，可以强制闭包取地它所使用得环境值得所有权
+  - 当将闭包传递给新线程以移动数据使其归新线程所有时，此技术最为有用
+
+#### filter 方法：
+
+- 接收一个闭包
+- 这个闭包在遍历迭代器的每个元素时，返回bool类型
+- 如果闭包返回true,当前元素将会包含在filter产生的迭代器中
+- 如果闭包返回false:放前元素将不会包含在filter产生的迭代器中
+
+```rust
+struct Shoe{
+    size :u32,
+    style:String,
+}
+
+fn shoes_in_my_size(shoes:Vec<Shoe>,shoe_size:u32)->Vec<Shoe>{
+    shoes.into_iter().filter(|x| x.size==shoe_size).collect()
+}
+```
+
+
+
+### 13.5 迭代器
+
+- 迭代器模式：对一系列项执行某些任务
+- 迭代器负责：
+  - 遍历每个项
+  - 确定序列何时完成
+- Rust的迭代器：
+  - 懒惰的：除非调用消费迭代器的方法，否则迭代器本身没有任何效果
+
+#### iterator trait
+
+- 所有迭代器都实现了iterator trait
+- iterator trait定义于标准库，定义大致如下：
+
+```rust
+pub trait iterator{
+    type item;
+    fn next(&mut self)->Option<Self::Item>;
+}
+```
+
+- 仅要求实现一个方法：next
+- next
+  - 每次返回迭代器中的一项
+  - 返回结果包裹在Some里
+  - 迭代结束，返回None
+- 可直接在迭代器上调用next方法
+
+#### 几个迭代方法
+
+- iter方法：在不可变引用上创建迭代器
+- into_iter方法：创建的迭代器会获得所有权
+- iter_mut方法：迭代可变的引用
+
+#### 消耗迭代器的方法
+
+- 调用next的方法叫做"消耗型适配器"
+
+```rust
+  #[test]
+    fn iterator_sum(){
+        let v1:Vec<i32> =vec![1,2,3];
+        let v2:Vec<_> =v1.iter().map(|x|x+1).collect();
+        
+        assert_eq!(v2,[2,3,4]);
+    }
+```
+
+#### 自定义迭代器
+
+#### 零开销抽象
+
+- 使用抽象时不会引入额外的运行时开销
+
+## 14  crateio
+
+### 14.1 通过release profile来自定义构建
+
+- release profile:
+  - 是预定义的
+  - 可自定义：可使用不同的配置，对代码编译拥有更多的控制
+- 每个profile的配置都独立于其他的profile
+- Cargo 主要的两个profile
+  - dev profile :适用于开发， cargo build
+  - release profile:适用于发布 ，cargo build -release
+
+#### 自定义profile
+
+```rust
+[profile.dev]
+opt-level =1
+
+[profile.release]
+opt-level =3
+```
+
