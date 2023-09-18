@@ -74,6 +74,170 @@ cargo check 可以快速的检查一下代码是否编译通过。因此该命�
 - 声明变量使用let关键字
 - 默认情况下，变量是不可变的（immutable）
 - 声明变量时，在变量前面加上mut，就可以使变量可变
+- [Rust语言规范]([命名规范 - Rust语言圣经(Rust Course)](https://course.rs/practice/naming.html))
+
+#### 变量绑定
+
+```rust
+let a ="hello world"
+```
+
+#### 使用下划线开头忽略未使用的变量
+
+你希望告诉Rust不要警告未使用的变量，为此可以用下划线作为变量名的开头：
+
+```rust
+fn main(){
+    let _x =5;
+    let y=10;
+}
+```
+
+![image-20230913095324735](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230913095324735.png)
+
+#### 变量解构
+
+let 表达式不仅仅用于变量的绑定，还能进行复杂变量的解构：从一个相对复杂的变量中，匹配出该变量的一部分内容
+
+```rust
+fn main(){
+    let (a,mut b):(bool,bool)=(true,false);
+    println!("a={:?},b={:?}",a,b);
+    
+    b=true;
+    assert_eq!(a,b);
+}
+```
+
+##### 解构Option
+
+**Option**枚举，用来解决Rust变量是否有值的问题
+
+```rust
+enum Option<T>{
+    Some(T),
+    None,
+}
+```
+
+一个变量要么有值：Some(T),要么为空：None
+
+```
+因为Option,Some,None都包含在prelude中，因此你可以直接通过名称来使用它们，而无需以Option::Some这种形式去使用
+```
+
+##### 匹配Option<T>
+
+```
+fn plus_one(x:Option<i32>)->Option<i32>{
+	match x{
+		None=>None,
+		Some(i)=>Some(i+1),
+	}
+}
+
+let five=Some(5);
+let six=plus_one(five);
+let none=plus_one(None);
+```
+
+##### 模式适用场景
+
+###### 模式
+
+- 字面值
+- 解构的数组、枚举、结构体或者元组
+- 变量
+- 通配符
+- 占位符
+
+###### 所有可能用到模式的地方
+
+- match分支
+
+```rust
+match VALUE{
+	pattern =>expression,
+	pattern =>expression,
+	pattern =>expression,
+}
+```
+
+- if let分支
+
+```rust
+if let Pattern =Some_value{
+    
+}
+```
+
+- while let 条件循环
+
+一个与if let类似的结构是while let 条件循环，它允许只要模式匹配就一直进行while循环。下面展示了一个使用while let的例子：
+
+```rust
+let mut stack=Vec::new();
+
+stack.push(1);
+stack.push(2);
+stack.push(3);
+
+while let Some(top)=stack.pop(){
+    println!("{}",top);
+}
+```
+
+###### 全模式列表
+
+- 匹配字面值
+
+```rust
+let x =1;
+match x{
+	1=>println!("one"),
+	2=>println!("two"),
+	_=>println!("other"),
+}
+```
+
+- 匹配命名变量
+
+变量遮蔽的问题
+
+- 单分支多模式
+
+在 **match**表达式中，可以使用|语法匹配多个模式，它代表或的意思
+
+- 通过序列... =匹配值的范围
+
+```rust
+let x= 5;
+match x{
+	1..=5 =>println!("one through five"),
+	_=>println!("others")
+}
+```
+
+#### 解构式赋值
+
+在赋值语句的左式中使用元组、切片和结构体模式
+
+```rust
+struct Struct{
+    e:i32
+}
+
+fn main(){
+    let (a,b,c,d,e);
+    (a,b)=(1,2);
+    [c,..,d,..]=[1,2,3,4,5];
+    Struct {e,..}=Struct{e:5};
+    
+    assert_eq!([1,2,1,4,5],[a,b,c,d,e]);
+}
+```
+
+使用+=的赋值语句还不支持解构式赋值
 
 ### 3.2 变量与常量
 
@@ -86,22 +250,159 @@ cargo check 可以快速的检查一下代码是否编译通过。因此该命�
 
 命名规范：使用全大写字母
 
+```rust
+const MAX_POINTS:u32 =100_000;
+```
+
+
+
 ### 3.3 shadowing （隐藏）
 
 - 可以使用相同的名字声明新的变量，新的变量就会shadow（隐藏）之前声明的同名变量
 - shadow和把变量标记为mut是不一样的
   - 使用let声明的同名新变量，它的类型可以与之前不同
 
+```rust
+fn var_shadow(){
+    let x=5;
+    let x=x+1;
+    {
+        let x=x*2;
+        println!("the value of x is {x}");
+    }
+
+    println!("the value of x is {x}");
+}
+```
+
+![image-20230913101758456](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230913101758456.png)
+
 ### 3.4 标量类型
 
 - 一个标量类型代表一个单个的值
 - Rust有四个主要的标量类型：
-  - 整数类型
-    - 整数溢出
-  - 浮点类型
+  - 数值类型
+    - 整数类型
+      - 有符号整数（i8,i16,i32,i64,isize）
+      - 无符号整数（u8,u16,u32,u64,usize）
+  
+    - 浮点类型
+      - 浮点数（f32,f64）
+      - 默认浮点类型是f64
+  
+    - 有理数
+    - 复数
+  
   - 布尔类型：true和false
-  - 字符类型：被用来描述语言中最基础的单个字符
+  - 字符类型：被用来描述语言中最基础的单个字符，存储为4个子节
+  - 单员类型：即（），其唯一的值也是（）
+  
 - 数值操作：加减乘除
+
+#### 类型推导与标注
+
+rust编译器可以根据变量的值和上下文中的使用方式来自动推导出变量的类型
+
+```rust
+let guess="42".parse().expect("not a number!");
+```
+
+#### 整型溢出
+
+- debug模式编译时，Rust会检查整型溢出，编译时panic
+- --release 参数进行release模式构建时，Rust不检测溢出。相反，当检测到整型溢出时，Rust会按照补码循环溢出
+
+```rust
+fn main(){
+    let a :u8 =255;
+    let b=a.wrapping_add(20);
+    println!("{}",b)//19
+}
+```
+
+#### 浮点数陷阱
+
+```rust
+fn main() {
+    let abc: (f32, f32, f32) = (0.1, 0.2, 0.3);
+    let xyz: (f64, f64, f64) = (0.1, 0.2, 0.3);
+
+    println!("abc (f32)");
+    println!("   0.1 + 0.2: {:x}", (abc.0 + abc.1).to_bits());
+    println!("         0.3: {:x}", (abc.2).to_bits());
+    println!();
+
+    println!("xyz (f64)");
+    println!("   0.1 + 0.2: {:x}", (xyz.0 + xyz.1).to_bits());
+    println!("         0.3: {:x}", (xyz.2).to_bits());
+    println!();
+
+    assert!(abc.0 + abc.1 == abc.2);
+    assert!(xyz.0 + xyz.1 == xyz.2);
+}
+```
+
+![image-20230913150304682](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230913150304682.png)
+
+#### NaN
+
+- 数学上未定义的结果
+- 所有跟NaN交互的操作，都会返回一个NaN,而且NaN不能用来比较
+
+```rust
+fn main(){
+	let x =(-42.0_f32).sqrt();
+	assert_eq!(x,x);
+}//代码会崩溃
+```
+
+#### 位运算
+
+![image-20230913150856910](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230913150856910.png)
+
+```rust
+fn main() {
+    // 二进制为00000010
+    let a:i32 = 2;
+    // 二进制为00000011
+    let b:i32 = 3;
+
+    println!("(a & b) value is {}", a & b);
+
+    println!("(a | b) value is {}", a | b);
+
+    println!("(a ^ b) value is {}", a ^ b);
+
+    println!("(!b) value is {} ", !b);
+
+    println!("(a << b) value is {}", a << b);
+
+    println!("(a >> b) value is {}", a >> b);
+
+    let mut a = a;
+    // 注意这些计算符除了!之外都可以加上=进行赋值 (因为!=要用来判断不等于)
+    a <<= b;
+    println!("(a << b) value is {}", a);
+}
+```
+
+#### 序列（Range）
+
+```rust
+for i in 1..=5{
+	println!("{}",i);
+}
+```
+
+```rust
+for i in 'a'..='z'{
+	println!("{}",i);
+}
+```
+
+#### 有理数和复数
+
+
 
 ### 3.5 复合类型（tuple）
 
@@ -171,7 +472,34 @@ cargo check 可以快速的检查一下代码是否编译通过。因此该命�
 
 #### 函数体中的语句与表达式
 
+```rust
+fn add_with_extra(x:i32,y:i32) ->i32{
+	let x= x+1;	//语句
+	let y=y+5;	//语句
+	x+y			//表达式
+}
+```
+
+
+
 #### 函数的返回值
+
+##### 无返回值（）
+
+- 函数没有返回值，那么返回一个（）
+- 通过；结尾的表达式返回一个（）
+
+##### 永不返回的发散函数！
+
+- 当用！作函数返回类型的时候，表示该函数永不返回
+
+```rust
+fn dead_end()->!{
+	panic("!!!");
+}
+```
+
+
 
 ### 3.8 控制流
 
@@ -213,6 +541,8 @@ cargo check 可以快速的检查一下代码是否编译通过。因此该命�
   	println!("LIFTOFF!");
   }
   ```
+
+### 3.10 模式匹配
 
 
 ## 4 所有权
@@ -284,6 +614,125 @@ scope就是程序中一个项目的有效范围
       - Tuple（元组），如果其所有的字段都是Copy的 
         - （i32,i32）是
         - （i32,String）不是
+
+##### String与&str的转换
+
+- &str类型生成String类型
+
+```rust
+String::from("hello,world");
+hello,world".to_string();
+```
+
+- String类型转换成&str类型
+
+```rust
+fn main(){
+	let s =String::from("hello world");
+    say_hello(&s);
+    say_hello(&s[..]);
+    say_hello(s.as_str());
+}
+
+fn say_hello(s:&str){
+    println!("{}",s);
+}
+```
+
+**deref**隐式强制转换
+
+##### 操作字符串
+
+- 追加（push）
+
+​	在原有的字符串上追加，并不会返回新的字符串，字符串变量必须由mut关键字修饰
+
+```rust
+fn main(){
+    let mut s= String::from("hello");
+    s.push_str("rust");
+    
+    s.push_str("!");
+}
+```
+
+- 插入
+
+​	使用 **insert()**方法插入单个字符 **char**,也可以使用 **insert_str()**方法插入字符串字面量
+
+```rust
+fn main(){
+    let mut s =String::from("hello rust!");
+    s.insert(5,',');
+    s.insert_str(5," i like");
+}
+```
+
+
+
+- 替换
+
+  - replace
+
+  返回一个新的字符串，而不是操作原来的字符串
+
+  ```rust
+  fn main() {
+      let string_replace = String::from("I like rust. Learning rust is my favorite!");
+      let new_string_replace = string_replace.replace("rust", "RUST");
+      dbg!(new_string_replace);
+  }
+  ```
+
+  - replacen
+
+  返回一个新的字符串，而不是操作原来的字符串
+
+  ```rust
+  fn main() {
+      let string_replace = "I like rust. Learning rust is my favorite!";
+      let new_string_replacen = string_replace.replacen("rust", "RUST", 1);
+      dbg!(new_string_replacen);
+  }
+  ```
+
+  - replace_range
+
+  操作原来的字符串，不会返回新的字符串，该方法需要使用**mut**关键字修饰
+
+  ```rust
+  fn main() {
+      let string_replace = "I like rust. Learning rust is my favorite!";
+      let new_string_replacen = string_replace.replacen("rust", "RUST", 1);
+      dbg!(new_string_replacen);
+  }
+  ```
+
+- 删除（Delete）
+
+  - pop --删除并返回字符串的最后一个字符
+
+  **该方法是直接操作原来的字符串**
+
+  ![image-20230914105154998](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230914105154998.png)
+
+  - remove --删除并返回字符串中指定位置的字符
+
+  **该方法是直接操作原来的字符串**
+
+  ![image-20230914105337653](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230914105337653.png)
+
+  - truncate --删除字符串中从指定位置开始到结尾的全部字符
+
+  **该方法是直接操作原来的字符串**
+
+  ![image-20230914105429926](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230914105429926.png)
+
+  - clear -- 清空字符串
+
+  ![image-20230914105454438](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230914105454438.png)
+
+- 连接（Concatenate）
 
 ### 4.4 所有权与函数
 
@@ -407,6 +856,178 @@ scope就是程序中一个项目的有效范围
   ```
 
 - 将字符串切片作为参数传递
+
+### 4.7 字符串转义
+
+我们可以通过转义的方式\输出ASCII和Unicode字符
+
+```rust
+fn main() {
+    // 通过 \ + 字符的十六进制表示，转义输出一个字符
+    let byte_escape = "I'm writing \x52\x75\x73\x74!";
+    println!("What are you doing\x3F (\\x3F means ?) {}", byte_escape);
+
+    // \u 可以输出一个 unicode 字符
+    let unicode_codepoint = "\u{211D}";
+    let character_name = "\"DOUBLE-STRUCK CAPITAL R\"";
+
+    println!(
+        "Unicode character {} (U+211D) is called {}",
+        unicode_codepoint, character_name
+    );
+
+    // 换行了也会保持之前的字符串格式
+    // 使用\忽略换行符
+    let long_string = "String literals
+                        can span multiple lines.
+                        The linebreak and indentation here ->\
+                        <- can be escaped too!";
+    println!("{}", long_string);
+}
+```
+
+### 4.8 操作 UTF-8 字符串
+
+#### 字符
+
+```rust
+for c in "中国人".chars(){
+    println!("{}",c);
+}
+```
+
+#### 子节
+
+```rust
+for b in "中国人".bytes(){
+    println!("{}",b);
+}
+```
+
+### 字符串深度刨析
+
+### 4.9 流程控制
+
+#### 使用if来做分支控制
+
+- if语句块是表达式
+- 用if来赋值时，要保证每个分支返回的类型一样
+
+#### 使用else if 来处理多重条件
+
+#### 循环控制
+
+##### for 循环
+
+```rust
+for 元素 in 集合 {
+	//使用元素干事情
+}
+```
+
+如果想在循环中，修改该元素，可以使用mut关键字
+
+```
+for item in &mut collection{
+	//...
+}
+```
+
+| 使用方法                    | 等价使用方式                                    | 所有权     |
+| --------------------------- | ----------------------------------------------- | ---------- |
+| for item in collection      | for item in IntoIterator::into_iter(collection) | 转移所有权 |
+| for item in &collection     | for item in collection.iter()                   | 不可变借用 |
+| for item in &mut collection | for item in collection.iter_mut()               | 可变借用   |
+
+###### 如何在循环中获取元素的索引：
+
+```rust
+fn main(){
+	let a =[4,3,2,1];
+    for(i,v) in a.iter().enumerate(){
+        println!("第{}个元素是{}",i+1,v);
+    }
+}
+```
+
+###### 不声明变量循环
+
+```rust
+fn main(){
+    for _ in 0..10{
+        //...
+    }
+}
+```
+
+##### continue
+
+使用continue可以跳过当前的循环
+
+```rust
+for i in 1..4{
+	if i==2{
+		continue;
+	}
+	println!("{}",i);
+}
+```
+
+##### break
+
+使用break可以跳出当前循环
+
+```rust
+for i in 1..4{
+    if i==2{
+        break;
+    }
+    println!("{}",i);
+}
+```
+
+##### while循环
+
+**for循环更安全也更简洁，同时避免了运行时候的边界检查**
+
+##### loop循环
+
+loop + if +break;
+
+```rust
+fn main(){
+    let mut counter =0;
+    let Result=loop{
+        counter+=1;
+
+        if counter==10{
+            break counter*2;
+        }
+    };
+
+    println!("the number of counter is {}",Result);
+}
+```
+
+- break可以单独使用，也可以带一个返回值，优点类似return
+- loop是一个表达式，因此可以返回一个值
+
+#### 匹配守卫提供的额外条件
+
+**匹配守卫**是一个位于match分支模式之后的额外if条件，它能为分支模式更进一步的匹配条件
+
+```rust
+let num =Some(4);
+match num{
+    Some(X) if x<5=>println!("less than five:{}",x),
+    Some(x) =>println!("{}",x),
+    None=>().
+}
+```
+
+#### @绑定
+
+
 
 ## 5 Struct
 
@@ -572,10 +1193,26 @@ fn main(){
 ### 6.3 match
 
 - 允许一个值与一系列模式进行匹配，并执行匹配的模式对应的代码
+
 - 绑定值的模式
   - 匹配的分支可以绑定到被匹配对象的不分枝
+  
 - match匹配必须穷举所有的可能
   - _通配符:替代其他没列出的值
+  
+  ```rust
+  match target{
+      模式1 => 表达式1，
+      模式2 => {
+          语句1;
+          语句2;
+          表达式
+      },
+      _=>表达式3
+  }
+  ```
+  
+  
 
 ### 6.4 if let
 
@@ -597,7 +1234,41 @@ fn main(){
   }
   ```
 
-  
+
+### 6.5 matches!宏
+
+可以将一个表达式跟模式进行匹配，然后返回匹配的结果true Or false
+
+```rust
+enum MyEnum{
+    Foo,
+    Bar
+}
+
+fn main(){
+    let v= vec![MyEnum::Foo,MyEnum::Bar,MyEnum::Foo];
+    
+    v.iter().filter(|x|matches!(x,MyEnum::Foo));
+}
+```
+
+### 6.6 变量遮蔽
+
+无论是match还是 if let ，这里都是一个新的代码块，而且这里的绑定相当于新变量，如果你使用同名变量，会发生变量遮蔽：
+
+```
+fn main() {
+   let age = Some(30);
+   println!("在匹配前，age是{:?}",age);
+   if let Some(age) = age {
+       println!("匹配出来的age是{}",age);
+   }
+
+   println!("在匹配后，age是{:?}",age);
+}
+```
+
+![image-20230914184912531](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230914184912531.png)
 
 ## 7. Package,Crate,Module
 
@@ -724,6 +1395,14 @@ fn main(){
 }
 ```
 
+------
+
+如果预先知道要存储的元素个数，可以使用Vec::with_capacity(capacity)创建动态数组，这样可以避免因为插入大量新数据导致频繁的内存分配和拷贝，提高性能
+
+------
+
+
+
 ### 8.2 vector例子
 
 #### 使用enum来存储多种数据类型
@@ -746,6 +1425,26 @@ fn main(){
     ];
 }
 ```
+
+#### 浮点数数组的排序
+
+```rust
+// fn main(){
+//     let mut vec=vec![1.0,5.6,2.0,15f32];
+//     vec.sort_unstable();
+//     assert_eq!(vec,vec![1.0,2.0,5.6,15f32]);
+
+// }
+
+fn main(){
+    let mut vec=vec![1.0,5.6,2.0,15f32];
+    vec.sort_unstable_by(|a,b| a.partial_cmp(b).unwrap());
+    assert_eq!(vec,vec![1.0,2.0,5.6,15f32]);
+
+}
+```
+
+
 
 ### 8.3 String
 
@@ -902,6 +1601,39 @@ fn main(){
 
 }
 ```
+
+#### 收集值到HashMap
+
+```rust
+use std::collections::HashMap;
+
+fn main(){
+    let team_list=vec![
+        ("美国队".to_string(),100),
+        ("美国队".to_string(),10),
+        ("美国队".to_string(),50),
+    ];
+
+    let teams_map:HashMap<_,_>=team_list.into_iter().collect();
+    println!("{:#?}",teams_map);
+}
+
+// fn main() {
+//     use std::collections::HashMap;
+
+//     let teams_list = vec![
+//         ("中国队".to_string(), 100),
+//         ("美国队".to_string(), 10),
+//         ("日本队".to_string(), 50),
+//     ];
+
+//     let teams_map: HashMap<_,_> = teams_list.into_iter().collect();
+    
+//     println!("{:?}",teams_map)
+// }
+```
+
+
 
 #### 更新HashMap<K,V>
 
@@ -1163,6 +1895,79 @@ fn main(){
 - 单态化
 
   - 在编译时将泛型替换为具体类型的过程
+
+```rust
+fn main(){
+    let mut personList:Vec<Box<dyn Role>>=Vec::new();
+
+    let student=Student;
+    let teacher=Teacher;
+
+    personList.push(Box::new(teacher));
+    personList.push(Box::new(student));
+
+    for role in personList{
+        role.print_role();
+    }
+
+}
+
+struct Teacher;
+struct Student;
+
+trait Role{
+    fn print_role(&self);
+}
+
+impl Role for Teacher{
+    fn print_role(&self) {
+        println!("this is a teacher");
+    }
+}
+
+impl Role for Student{
+    fn print_role(&self){
+        println!("this is a student");
+    }
+}
+```
+
+
+
+### self和Self
+
+在Rust中，有两个self,一个指代当前的实例对象，一个指代特征或者方法类型的别名：
+
+```rust
+
+trait Draw{
+    fn draw(&self)->Self;
+}
+
+#[derive(Clone)]
+struct Button;
+impl  Draw for Button{
+    fn draw(&self)->Self{
+        return self.clone()
+    }
+}
+    
+
+
+fn main(){
+    let button =Button;
+    let newb=button.draw();    
+}
+```
+
+### 特征对象的限制
+
+不是所有特征都能拥有特征对象，只有对象安全的特征才行，当一个特征的所有方法都有如下属性时，它的对象才是安全的:
+
+- 方法的返回类型不能是 **Self**
+- 方法没有任何泛型参数
+
+
 
 ### 10.3 Trait
 
@@ -1746,3 +2551,4 @@ opt-level =1
 opt-level =3
 ```
 
+## 15 类型转换
