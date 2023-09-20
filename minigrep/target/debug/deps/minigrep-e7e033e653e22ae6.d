@@ -1,0 +1,5 @@
+D:\xpro\Documents\rust\minigrep\target\debug\deps\minigrep-e7e033e653e22ae6.rmeta: src\lib.rs
+
+D:\xpro\Documents\rust\minigrep\target\debug\deps\minigrep-e7e033e653e22ae6.d: src\lib.rs
+
+src\lib.rs:

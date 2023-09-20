@@ -1303,6 +1303,29 @@ fn main() {
   - mod关键字
   - 可嵌套
 
+- 在Rust中，父模块完全无法访问子模块中的私有项，但是子模块却可以访问父模块、父父..模块的私有项
+
+#### pub关键字
+
+rust提供了 **pub**关键字，通过它你可以控制模块和模块中指定项的可见性
+
+```rust
+mod front_of_house{
+	pub mod hosting{
+		pub fn add_to_waitlist(){
+			//....		
+		}
+	}
+}
+```
+
+#### super关键字
+
+#### 结构体和枚举的可见性
+
+- 将结构体设置为pub，但它的所有字符依然是私有的
+- 将枚举设置为pub，它的所有字段也将对外可见
+
 ### 7.4 路径
 
 - ​	路径的两种形式
@@ -1314,6 +1337,24 @@ fn main() {
 - pub enum
   - enum是公共的
   - enum的变体也都是公共的
+
+```rust
+mod front_of_house {
+    mod hosting {
+        fn add_to_waitlist() {}
+    }
+}
+
+pub fn eat_at_restaurant() {
+    // 绝对路径
+    crate::front_of_house::hosting::add_to_waitlist();
+
+    // 相对路径
+    front_of_house::hosting::add_to_waitlist();
+}
+```
+
+
 
 #### 7.5 use关键字
 
@@ -1722,6 +1763,23 @@ panic='abort'
 - 可通过调用panic！的函数的回溯信息来定位引起问题的代码
 - 通过设置环境变量RUST_BACKTRACE可得到回溯信息
 - 为了获取带有调试信息的回溯，必须启用调试符号（不带 --release）
+
+#### backtrave栈展开
+
+#### panic时的两种终止方式
+
+栈展开和直接终止
+
+修改Cargo.toml文件，实现在release模式下遇到panic直接终止：
+
+```rust
+[profile.release]
+panic="abort"
+```
+
+#### 线程panic后，程序是否会终止
+
+如果是 **main**线程，则程序会终止，如果是其他子线程，该线程会终止，但是不会影响 **main**线程
 
 ### 9.2 Result枚举
 
@@ -2141,6 +2199,144 @@ impl<'a> ImportantExcept<'a>{
 
 - static是一个特殊的生命周期：整个程序的持续时间
 
+#### 无界生命周期
+
+往往是在解引用一个裸指针时产生的
+
+```rust
+fn f<'a,T>(x:*const T)->&'a T{
+    unsafe{
+        &*x
+    }
+}'
+```
+
+**若一个输出生命周期被消除了，那么必定因为有一个输入生命周期与之对应**
+
+#### 生命周期约束HRTB
+
+通过形如 **‘a:'b**的语法来说明两个生命周期的长短关系，'a>=’b
+
+```rust
+struct DoubleRef<'a,'b:'a,T>{
+    r:&'a T,
+    s:&'b T
+}
+```
+
+#### 闭包函数的消除规则
+
+![image-20230919214745913](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230919214745913.png)
+
+#### NLL（Non-Lexical Lifetime）
+
+```rust
+fn main() {
+   let mut s = String::from("hello");
+
+    let r1 = &s;
+    let r2 = &s;
+    println!("{} and {}", r1, r2);
+    // 新编译器中，r1,r2作用域在这里结束
+
+    let r3 = &mut s;
+    println!("{}", r3);
+}
+```
+
+#### Reborrow再借用
+
+```rust
+struct Interface<'b, 'a: 'b> {
+    manager: &'b mut Manager<'a>,
+}
+
+impl<'b, 'a: 'b> Interface<'b, 'a> {
+    pub fn noop(self) {
+        println!("interface consumed");
+    }
+}
+
+struct Manager<'a> {
+    text: &'a str,
+}
+
+struct List<'a> {
+    manager: Manager<'a>,
+}
+
+impl<'a> List<'a> {
+    pub fn get_interface<'b>(&'b mut self) -> Interface<'b, 'a>
+    where
+        'a: 'b,
+    {
+        Interface {
+            manager: &mut self.manager,
+        }
+    }
+}
+fn main() {
+    let mut list=List{
+        manager:Manager { text: "hello" }
+    };
+
+    list.get_interface().noop();
+    println!("!!!!");
+    use_list(&list);  
+
+}
+
+fn use_list(list:&List){
+    println!("{}",list.manager.text);
+}
+
+```
+
+
+
+### 10.5 &'static 和 T:'static
+
+##### &'static
+
+一个引用必须要活得和剩下的程序一样久，才能被标注为&’static
+
+&'static生命周期针对的仅仅是引用，而不是持有该引用的变量，对于变量来说，还是要遵循相应的作用域规则
+
+##### T:' static
+
+```rust
+use std::fmt::Debug;
+
+fn print_it<T: Debug + 'static>( input: &T) {
+    println!( "'static value passed in is: {:?}", input );
+}
+
+fn main() {
+    let i = 5;
+
+    print_it(&i);
+}
+```
+
+#### static到底针对谁？
+
+**答案是引用指向的数据**
+
+```rust
+fn main() {
+    {
+        let static_string = "I'm in read-only memory";
+        println!("static_string: {}", static_string);
+
+        // 当 `static_string` 超出作用域时，该引用不能再被使用，但是数据依然会存在于 binary 所占用的内存中
+    }
+
+    println!("static_string reference remains alive: {}", static_string);
+}
+```
+
+
+
 ## 11 编写和运行测试
 
 ### 11.1 测试
@@ -2374,6 +2570,7 @@ let expensive_closure =|num|{
 - 闭包不要求标注参数和返回值的类型
 - 闭包通常很短小，只在狭小的上下文中工作，编译器通常能推断出类型
 - 可以手动添加类型标注
+- **当编译器推导出一种类型后，它就会一直使用该类型**
 
 ```rust
 let expensive_closure =|num:u32|->u32{
@@ -2382,6 +2579,27 @@ let expensive_closure =|num:u32|->u32{
     num
 };
 ```
+
+![image-20230919222355685](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230919222355685.png)
+
+#### 捕获作用域中的值
+
+在之前代码中，我们一直用闭包的匿名函数特性（赋值给变量），然而闭包还拥有一项函数所不具备的特性：捕获作用域中的值
+
+```rust
+fn main(){
+    let x=4;
+    let equal_to_x=|z|z==x;
+    let y=4;
+    assert!(equal_to_x(y));
+}
+```
+
+#### 闭包对内存的影响
+
+当闭包从环境中捕获一个值时，会分配内存去存储这些值。
+
+与之想比，函数就不会去捕获这些环境值，因此定义和使用函数不会拥有这种内存负担
 
 #### 函数和闭包的定义语法
 
@@ -2473,6 +2691,59 @@ fn shoes_in_my_size(shoes:Vec<Shoe>,shoe_size:u32)->Vec<Shoe>{
 }
 ```
 
+#### 三种Fn特征
+
+1. FnOnce,该类型的闭包会拿走被捕获变量的所有权。Once说明该闭包只能运行一次：
+
+   ```rust
+   fn fn_once<F>(func: F)
+   where
+       F: FnOnce(usize) -> bool + Copy,// 改动在这里
+   {
+       println!("{}", func(3));
+       println!("{}", func(4));
+   }
+   
+   fn main() {
+       let x = vec![1, 2, 3];
+       fn_once(|z|{z == x.len()})
+   }
+   ```
+
+   
+
+2. FnMut，它以可变借用的方式捕获了环境中的值，因此可以修改该值
+
+   ```tust
+   fn main() {
+       let mut s = String::new();
+   
+       let mut update_string =  |str| s.push_str(str);
+       update_string("hello");
+   
+       println!("{:?}",s);
+   }
+   ```
+
+   
+
+3. Fn 不可变借用
+
+#### 闭包作为返回值
+
+```rust
+fn factory(x:i32) -> Box<dyn Fn(i32) -> i32> {
+    let num = 5;
+
+    if x > 1{
+        Box::new(move |x| x + num)
+    } else {
+        Box::new(move |x| x - num)
+    }
+}
+
+```
+
 
 
 ### 13.5 迭代器
@@ -2529,6 +2800,12 @@ pub trait iterator{
 
 - 使用抽象时不会引入额外的运行时开销
 
+#### 惰性初始化
+
+### 13.6 包Crate
+
+
+
 ## 14  crateio
 
 ### 14.1 通过release profile来自定义构建
@@ -2552,3 +2829,322 @@ opt-level =3
 ```
 
 ## 15 类型转换
+
+### as
+
+#### 使用as进行类型转换
+
+## 16 注释和文档
+
+### 注释的种类
+
+- 代码注释，用来说明某一块代码的功能
+- 文档注释，支持Markdown
+- 包和模块注释,严格来说这也是文档注释中的一种
+
+### 代码注释
+
+- 行注释 //
+- 块注释 /**/
+
+### 文档注释
+
+- 文档行注释 ///
+  - 文档注释需要位于 **lib**类型的包中
+  - 文档注释可以使用markdown语法
+  - 被注释的对象需要使用pub对外可见
+- 文档块注释 /**  */
+- 查看文档 cargo doc 或 cargo doc --open
+
+### 包和模块级别的注释
+
+这些注释要添加到包、模块的最上方
+
+- 行注释//!
+- 块注释/*! ... */
+
+### 文档测试（Doc Test）
+
+## 17 格式化输出
+
+### print! ,println! ,format!
+
+- print! 将格式化文本输出到标准输出，不带换行符
+- println! 同上，但是在行的末尾添加换行符
+- format! 将格式化文本输出到String 字符串
+
+### eprint! ,eprintln!
+
+除了三大金刚外，还有两大护法，使用方式跟print！，println！很像，但是它们输出到标准错误输出
+
+```rust
+eprintln!("error: could not complete task")
+```
+
+### {} 与
+
+与{}相似，{：？}也是占位符
+
+- {}适用于实现std::fmt::Display 特征的类型
+- {:?}适用于实现了std::fmt::Debug特征的类型
+
+#### Debug特征
+
+```rust
+#[derive(Debug)]
+struct Person {
+    name: String,
+    age: u8
+}
+
+fn main() {
+    let i = 3.1415926;
+    let s = String::from("hello");
+    let v = vec![1, 2, 3];
+    let p = Person{name: "sunface".to_string(), age: 18};
+    println!("{:?}, {:?}, {:?}, {:?}", i, s, v, p);
+}
+```
+
+对于数值、字符串、数组，可以直接使用{:?}进行输出，但是对于结构体，需要派生Debug特征后，才能进行输出
+
+#### Display特征
+
+##### 使用{:?}或{:#?}
+
+##### 为自定义类型实现Display特征
+
+```rust
+struct Person {
+    name: String,
+    age: u8,
+}
+
+use std::fmt;
+impl fmt::Display for Person {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "大佬在上，请受我一拜，小弟姓名{}，年芳{}，家里无田又无车，生活苦哈哈",
+            self.name, self.age
+        )
+    }
+}
+fn main() {
+    let p = Person {
+        name: "sunface".to_string(),
+        age: 18,
+    };
+    println!("{}", p);
+}
+```
+
+实现 **Display**特征中的 **fmt**方法
+
+##### 使用newtype 为外部类型实现Display特征
+
+```rust
+struct Array(Vec<i32>);
+
+use std::fmt;
+impl fmt::Display for Array {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "数组是：{:?}", self.0)
+    }
+}
+fn main() {
+    let arr = Array(vec![1, 2, 3]);
+    println!("{}", arr);
+}
+```
+
+#### 位置参数
+
+让指定位置的参数去替换某个占位符，例如{1}，表示用第二个参数替换该占位符
+
+```rust
+fn main() {
+    println!("{}{}", 1, 2); // =>"12"
+    println!("{1}{0}", 1, 2); // =>"21"
+    // => Alice, this is Bob. Bob, this is Alice
+    println!("{0}, this is {1}. {1}, this is {0}", "Alice", "Bob");
+    println!("{1}{}{0}{}", 1, 2); // => 2112
+}
+```
+
+#### 具名参数
+
+为参数指定名称
+
+```rust
+fn main() {
+    println!("{argument}", argument = "test"); // => "test"
+    println!("{name} {}", 1, name = 2); // => "2 1"
+    println!("{a} {c} {b}", a = "a", b = 'b', c = 3); // => "a 3 b"
+}
+```
+
+**带名称的参数必须放在不带名称参数的后面**
+
+![image-20230919144407842](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230919144407842.png)
+
+#### 格式化参数
+
+```rust
+fn main(){
+    let v=3.1415926;
+    println!("{:.2}",v);   //Display =>3.14
+    println!("{:.2?}",v);  //Debug=>3.14
+}
+```
+
+##### 宽度
+
+指定输出目标的长度，如果长度不够，则进行填充和对齐；
+
+##### 字符串填充
+
+字符串格式化默认使用空格进行填充，并且进行左对齐
+
+```rust
+fn main() {
+    //-----------------------------------
+    // 以下全部输出 "Hello x    !"
+    // 为"x"后面填充空格，补齐宽度5
+    println!("Hello {:5}!", "x");
+    // 使用参数5来指定宽度
+    println!("Hello {:1$}!", "x", 5);
+    // 使用x作为占位符输出内容，同时使用5作为宽度
+    println!("Hello {1:0$}!", 5, "x");
+    // 使用有名称的参数作为宽度
+    println!("Hello {:width$}!", "x", width = 5);
+    //-----------------------------------
+
+    // 使用参数5为参数x指定宽度，同时在结尾输出参数5 => Hello x    !5
+    println!("Hello {:1$}!{}", "x", 5);
+}
+```
+
+##### 数字填充：符号和0
+
+数字格式化默认也是使用空格进行填充，但与字符串左对齐不同的是，数字是右对齐
+
+```rust
+fn main() {
+    // 宽度是5 => Hello     5!
+    println!("Hello {:5}!", 5);
+    // 显式的输出正号 => Hello +5!
+    println!("Hello {:+}!", 5);
+    // 宽度5，使用0进行填充 => Hello 00005!
+    println!("Hello {:05}!", 5);
+    // 负号也要占用一位宽度 => Hello -0005!
+    println!("Hello {:05}!", -5);
+}
+```
+
+#### 对齐
+
+```rust
+fn main() {
+    // 以下全部都会补齐5个字符的长度
+    // 左对齐 => Hello x    !
+    println!("Hello {:<5}!", "x");
+    // 右对齐 => Hello     x!
+    println!("Hello {:>5}!", "x");
+    // 居中对齐 => Hello   x  !
+    println!("Hello {:^5}!", "x");
+
+    // 对齐并使用指定符号填充 => Hello x&&&&!
+    // 指定符号填充的前提条件是必须有对齐字符
+    println!("Hello {:&<5}!", "x");
+}
+```
+
+#### 精度
+
+可以用于控制浮点数的精度或者字符串的长度
+
+```rust
+fn main() {
+    let v = 3.1415926;
+    // 保留小数点后两位 => 3.14
+    println!("{:.2}", v);
+    // 带符号保留小数点后两位 => +3.14
+    println!("{:+.2}", v);
+    // 不带小数 => 3
+    println!("{:.0}", v);
+    // 通过参数来设定精度 => 3.1416，相当于{:.4}
+    println!("{:.1$}", v, 4);
+
+    let s = "hi我是Sunface孙飞";
+    // 保留字符串前三个字符 => hi我
+    println!("{:.3}", s);
+    // {:.*}接收两个参数，第一个是精度，第二个是被格式化的值 => Hello abc!
+    println!("Hello {:.*}!", 3, "abcdefg");
+}
+```
+
+#### 进制
+
+可以使用#号来控制数字的进展输出：
+
+- #b,二进制
+- #o,八进制
+- #x,小写十六进制
+- #X,大写十六进制
+- x，不带前缀的小写十六进制
+
+```rust
+fn main() {
+    // 二进制 => 0b11011!
+    println!("{:#b}!", 27);
+    // 八进制 => 0o33!
+    println!("{:#o}!", 27);
+    // 十进制 => 27!
+    println!("{}!", 27);
+    // 小写十六进制 => 0x1b!
+    println!("{:#x}!", 27);
+    // 大写十六进制 => 0x1B!
+    println!("{:#X}!", 27);
+
+    // 不带前缀的十六进制 => 1b!
+    println!("{:x}!", 27);
+
+    // 使用0填充二进制，宽度为10 => 0b00011011!
+    println!("{:#010b}!", 27);
+}
+```
+
+#### 指数
+
+```rust
+fn main() {
+    println!("{:2e}", 1000000000); // => 1e9
+    println!("{:2E}", 1000000000); // => 1E9
+}
+```
+
+#### 指针地址
+
+```rust
+let v= vec![1, 2, 3];
+println!("{:p}", v.as_ptr()) // => 0x600002324050
+```
+
+#### 转义
+
+```rust
+fn main() {
+    // "{{" 转义为 '{'   "}}" 转义为 '}'   "\"" 转义为 '"'
+    // => Hello "{World}" 
+    println!(" Hello \"{{World}}\" ");
+
+    // 下面代码会报错，因为占位符{}只有一个右括号}，左括号被转义成字符串的内容
+    // println!(" {{ Hello } ");
+    // 也不可使用 '\' 来转义 "{}"
+    // println!(" \{ Hello \} ")
+}
+```
+
+
+
