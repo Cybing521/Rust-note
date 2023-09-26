@@ -2776,9 +2776,46 @@ pub trait iterator{
 
 #### 几个迭代方法
 
-- iter方法：在不可变引用上创建迭代器
+- iter方法：在不可变引用上创建迭代器，调用next方法返回的类型是Some(&T)
 - into_iter方法：创建的迭代器会获得所有权
-- iter_mut方法：迭代可变的引用
+- iter_mut方法：迭代可变的引用,调用next方法返回的类型是Some(&mut T)
+
+```rust
+fn main() {
+    let values = vec![1, 2, 3];
+
+    for v in values.into_iter() {
+        println!("{}", v)
+    }
+
+    // 下面的代码将报错，因为 values 的所有权在上面 `for` 循环中已经被转移走
+    // println!("{:?}",values);
+
+    let values = vec![1, 2, 3];
+    let _values_iter = values.iter();
+
+    // 不会报错，因为 values_iter 只是借用了 values 中的元素
+    println!("{:?}", values);
+
+    let mut values = vec![1, 2, 3];
+    // 对 values 中的元素进行可变借用
+    let mut values_iter_mut = values.iter_mut();
+
+    // 取出第一个元素，并修改为0
+    if let Some(v) = values_iter_mut.next() {
+        *v = 0;
+    }
+
+    // 输出[0, 2, 3]
+    println!("{:?}", values);
+}
+```
+
+#### iterator和intoiterator的区别
+
+Iterator就是迭代器特征，只有实现了它才能称为迭代器，才能调用next
+
+intoIterator强调的是某一个类型如果实现了该特征，它可以通过into_iter,iter等方法变成一个迭代器
 
 #### 消耗迭代器的方法
 
@@ -2801,6 +2838,20 @@ pub trait iterator{
 - 使用抽象时不会引入额外的运行时开销
 
 #### 惰性初始化
+
+在Rust中，迭代器是惰性的，意味着如果你不使用它，那么它将不会发生任何事
+
+```rust
+fn main(){
+    let v1=vec![1,2,3];
+    let v1_iter=v1.iter();
+    for val in v1_iter{
+        println!("{}",val);
+    }
+}
+```
+
+
 
 ### 13.6 包Crate
 
@@ -2833,6 +2884,284 @@ opt-level =3
 ### as
 
 #### 使用as进行类型转换
+
+```rust
+fn main() {
+   let a = 3.1 as i8;
+   let b = 100_i8 as i32;
+   let c = 'a' as u8; // 将字符'a'转换为整数，97
+
+   println!("{},{},{}",a,b,c)
+}
+```
+
+#### 内存地址转换为指针
+
+```rust
+let mut values: [i32; 2] = [1, 2];
+let p1: *mut i32 = values.as_mut_ptr();
+let first_address = p1 as usize; // 将p1内存地址转换为一个整数
+let second_address = first_address + 4; // 4 == std::mem::size_of::<i32>()，i32类型占用4个字节，因此将内存地址 + 4
+let p2 = second_address as *mut i32; // 访问该地址指向的下一个整数p2
+unsafe {
+    *p2 += 1;
+}
+assert_eq!(values[1], 3);
+
+```
+
+#### 强制类型转换的边角知识
+
+转换不具有传递性
+
+### TryInto转换
+
+如果你想要在类型转换上拥有完全的控制而不依赖内置的转换，例如处理转换错误，那么可以使用tryInto
+
+最主要的是 **try_into **转换会捕获大类型向小类型转换时导致的溢出错误：
+
+```rust
+fn main(){
+    let b:i16=1500;
+    let b_:u8=match b.try_into(){
+        Ok(b1)=>b1,
+        Err(e)=>{
+            println!("{:?}",e.to_string());
+            0
+        }
+    }
+}
+```
+
+### 通用类型转换
+
+### 深入Rust类型
+
+#### new type
+
+##### 为外部类型实现外部特征
+
+```rust
+use std::fmt;
+
+struct Wrapper(Vec<String>);
+
+impl fmt::Display for Wrapper {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{}]", self.0.join(", "))
+    }
+}
+
+fn main() {
+    let w = Wrapper(vec![String::from("hello"), String::from("world")]);
+    println!("w = {}", w);
+}
+```
+
+##### 更好的可读性及类型异化
+
+```rust
+use std::ops::Add;
+use std::fmt;
+
+struct Meters(u32);
+impl fmt::Display for Meters {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "目标地点距离你{}米", self.0)
+    }
+}
+
+impl Add for Meters {
+    type Output = Self;
+
+    fn add(self, other: Meters) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+fn main() {
+    let d = calculate_distance(Meters(10), Meters(20));
+    println!("{}", d);
+}
+
+fn calculate_distance(d1: Meters, d2: Meters) -> Meters {
+    d1 + d2
+}
+```
+
+##### 隐藏内部类型的细节
+
+```rust
+struct Meters(u32);
+
+fn main() {
+    let i: u32 = 2;
+    assert_eq!(i.pow(2), 4);
+
+    let n = Meters(i);
+    // 下面的代码将报错，因为`Meters`类型上没有`pow`方法
+    // assert_eq!(n.pow(2), 4);
+}
+```
+
+不过需要偷偷告诉你的是，这种方式实际上是掩耳盗铃，因为用户依然可以通过 `n.0.pow(2)` 的方式来调用内部类型的方法 :
+
+#### 类型别名（type alias）
+
+```rust
+type Meters=u32
+```
+
+类型别名并不是一个独立的全新的类型，而是某一个类型的别名
+
+```rust
+type Meters = u32;
+
+let x: u32 = 5;
+let y: Meters = 5;
+
+println!("x + y = {}", x + y);
+
+```
+
+可以减少模板化语言的使用
+
+```rust
+let f: Box<dyn Fn() + Send + 'static> = Box::new(|| println!("hi"));
+
+fn takes_long_type(f: Box<dyn Fn() + Send + 'static>) {
+    // --snip--
+}
+
+fn returns_long_type() -> Box<dyn Fn() + Send + 'static> {
+    // --snip--
+}
+
+```
+
+
+
+```rust
+type Thunk = Box<dyn Fn() + Send + 'static>;
+
+let f: Thunk = Box::new(|| println!("hi"));
+
+fn takes_long_type(f: Thunk) {
+    // --snip--
+}
+
+fn returns_long_type() -> Thunk {
+    // --snip--
+}
+
+```
+
+#### !永不返回类型
+
+!用来说明一个函数永不返回任何值
+
+```rust
+fn main() {
+    let i = 2;
+    let v = match i {
+       0..=3 => i,
+       _ => println!("不合规定的值:{}", i)
+    };
+}
+```
+
+不能通过编译，两个分支返回的类型不同
+
+```rust
+fn main() {
+    let i = 2;
+    let v = match i {
+       0..=3 => i,
+       _ => panic!("不合规定的值:{}", i)
+    };
+}
+```
+
+可以通过编译，两个分支返回的类型相同，panic的返回值是！，代表它绝不会返回任何值
+
+### sized和不定长类型DST
+
+- 定长类型（sized）,这些类型的大小在编译时是已知的
+- 不定长类型（unsized）,与定长类型相反，它的大小只有到了程序运行时才能动态获知，这种类型又被称之为DST
+
+#### 动态大小类型DST
+
+编译器无法在编译期得到该类型值得大小，只有到了程序运行时，才能动态获知
+
+这些底层数据知识保存在堆上，在栈中还存有一个引用类型，栈上得引用类型是固定大小的
+
+使用引用指向这些动态数据，然后在引用中存储相关的内存位置、长度等信息
+
+##### 特征对象
+
+```rust
+fn foobar_1(thing:&dyn MyThing) {}		//OK
+fn foobar_2(thing:Bob<dyb MyThing>){}	//OK
+fn foobar_3(thing:MyThing){}			//ERROR!
+```
+
+只能通过引用或Box的方式来使用特征对象，直接使用将报错！
+
+##### 总结：只能间接使用的DST
+
+Rust中常见的DST类型有str、[T]、dyn Trait，它们都无法单独被使用，必须要通过引用或者Box来间接使用
+
+#### Sized特征
+
+```rust
+fn genertivc<T>(t:T){
+    // --snip--
+}
+```
+
+```rust
+fn generic<T: Sized>(t:T){
+    //--snip--
+}
+```
+
+所有在编译时就能知道其大小的类型，都会自动实现Sized特征
+
+每一个特征都是一个可以通过名称来引用的动态大小类型，假如想在泛型函数中使用动态类型
+
+```rust
+fn generic<T:?Sized>(t:&T){
+	//--snip--
+}
+```
+
+#### Box< str >
+
+使用引用指向这些动态数据，然后在引用中存储相关的内存位置、长度等信息
+
+![image-20230922134921734](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230922134921734.png)
+
+### 枚举和整数
+
+#### std::mean::transmute
+
+最好使用#[repr(...)]来控制底层类型的大小，免得本来需要i32，结果传入i64,最终内存无法对齐，产生奇怪的结果
+
+```rust
+#[repr(i32)]
+enum MyEnum{
+    A=1,B,C
+}
+fn main(){
+    let x=MyEnum::C;
+    let y=x as i32;
+    let z :MyEnum=unsafe{std::mem::transmute(y)};
+    
+    match z{
+        MyEnum::C=>{println!("found C")}
+        _ =>{println!("others")
+    }
+}
+```
 
 ## 16 注释和文档
 
@@ -3146,5 +3475,855 @@ fn main() {
 }
 ```
 
+## 17 智能指针
 
+指针是一个包含了内存地址的变量，该内存地址引用或者指向了另外的数据
+
+### 17.1 Box< T >堆对象分配
+
+#### Rust 中的堆栈
+
+一般来说操作系统对栈内存的大小都有限制
+
+栈内存从高位地址向下增长，且栈内存是连续分配的，一般来说操作系统对栈内存的大小都有限制
+
+堆上内存则是从低位地址向上增长，堆内存通常只受物理内存限制
+
+```rust
+fn main() {
+    let b = foo("world");
+    println!("{}", b);
+}
+
+fn foo(x: &str) -> String {
+    let a = "Hello, ".to_string() + x;
+    a
+}
+```
+
+##### 堆栈的性能
+
+- 小型数据，在栈上的分配性能和读取性能都要比堆上高
+- 中型数据，栈上分配性能高，但是读取性能和堆上并无区别，因为无法利用寄存器或CPU高速缓存，最终还是要经过一次内存寻址
+- 大型数据，只建议在堆上分配和使用
+
+#### Box的使用场景
+
+##### 使用Box< T >将数据存储在堆上
+
+```rust
+fn main(){
+    let a =Box::new(3);
+  	println!("a= {a}");
+}
+```
+
+创建一个智能指针指向了存储在堆上的3，并且a持有了该指针。
+
+##### 避免栈上数据的拷贝
+
+栈上数据转移所有权，实际上是把数据拷贝了一份，最终新旧变量各自拥有不同的数据，因此所有权并未转移
+
+堆上底层数据并不会别拷贝，转移所有权仅仅是复制一份栈中的指针，再将新的指针赋予新的变量，然后让拥有旧指针的变量失效，最终完成了所有权的转移
+
+```rust
+fn main() {
+    // 在栈上创建一个长度为1000的数组
+    let arr = [0;1000];
+    // 将arr所有权转移arr1，由于 `arr` 分配在栈上，因此这里实际上是直接重新深拷贝了一份数据
+    let arr1 = arr;
+
+    // arr 和 arr1 都拥有各自的栈上数组，因此不会报错
+    println!("{:?}", arr.len());
+    println!("{:?}", arr1.len());
+
+    // 在堆上创建一个长度为1000的数组，然后使用一个智能指针指向它
+    let arr = Box::new([0;1000]);
+    // 将堆上数组的所有权转移给 arr1，由于数据在堆上，因此仅仅拷贝了智能指针的结构体，底层数据并没有被拷贝
+    // 所有权顺利转移给 arr1，arr 不再拥有所有权
+    let arr1 = arr;
+    println!("{:?}", arr1.len());
+    // 由于 arr 不再拥有底层数组的所有权，因此下面代码将报错
+    // println!("{:?}", arr.len());
+}
+```
+
+#### 将动态大小类型变为Sized固定大小类型
+
+一种无法在编译时知道大小的类型是 **递归类型**
+
+```rust
+enum List{
+	Cons(i32,Box<List>),
+	Nil,
+}
+```
+
+#### Box内存布局
+
+```
+(stack)    (heap)
+┌──────┐   ┌───┐
+│ vec1 │──→│ 1 │
+└──────┘   ├───┤
+           │ 2 │
+           ├───┤
+           │ 3 │
+           ├───┤
+           │ 4 │
+           └───┘
+```
+
+```
+                    (heap)
+(stack)    (heap)   ┌───┐
+┌──────┐   ┌───┐ ┌─→│ 1 │
+│ vec2 │──→│B1 │─┘  └───┘
+└──────┘   ├───┤    ┌───┐
+           │B2 │───→│ 2 │
+           ├───┤    └───┘
+           │B3 │─┐  ┌───┐
+           ├───┤ └─→│ 3 │
+           │B4 │─┐  └───┘
+           └───┘ │  ┌───┐
+                 └─→│ 4 │
+                    └───┘
+
+```
+
+```rust
+fn main() {
+    let arr = vec![Box::new(1), Box::new(2)];
+    let (first, second) = (&arr[0], &arr[1]);
+    let sum = **first + **second;
+}
+```
+
+#### Box::leak
+
+可以消费调Box并且强制目标值从内存中泄露
+
+例如：把一个String类型，变成一个‘static生命周期的&str类型：
+
+```rust
+fn main() {
+   let s = gen_static_str();
+   println!("{}", s);
+}
+
+fn gen_static_str() -> &'static str{
+    let mut s = String::new();
+    s.push_str("hello, world");
+
+    Box::leak(s.into_boxed_str())
+}
+```
+
+#### 总结
+
+Box背后是调用jemalloc来做内存管理，所以堆上的空间无需我们的手动管理
+
+### 17.2 Deref解引用
+
+- Deref可以让智能指针像引用那样工作，这样你就可以写出同时支持智能指针和引用的代码，例如*T
+- Drop允许你指定智能指针超出作用域后自动执行的代码，例如做一些数据清除等收尾工作
+
+#### 通过*获取引用背后的值
+
+对常规引用使用* 操作符，就可以通过解引用的方式获取到内存地址对应的数据值：
+
+```rust
+fn main(){
+	let x=5;
+    let y=&x;
+    
+    assert_eq!(5,x);
+    assert_eq!(5,*y);
+}
+```
+
+#### 智能指针解引用
+
+实现 **Deref**后的智能指针结构体，就可以像普通引用一样，通过*****进行解引用
+
+```rust
+fn main(){
+    let x= Box::new(1);
+    let sum=*x+1;
+}
+```
+
+##### 定义自己的智能指针
+
+```rust
+struct MyBox<T>(T);
+impl<T> MyBox<T>{
+    fn new(x:T)->MyBox<T>{
+        MyBox(x)
+    }
+}
+
+//实现Deref特征
+use std::ops::Deref;
+impl<T> Deref for MyBox<T>{
+    type targer =T;
+    fn deref(&self) ->Self::Target{
+        &self.0
+    }
+}
+
+fn main(){
+    let y=MyBox::new(5);
+    assert_eq!(5,*y);
+}
+```
+
+- 在Deref特征中声明了关联类型Target
+- deref返回的是一个常规引用，可以被*进行解引用
+
+##### *背后的原理
+
+当我们对智能指针Box进行解引用时，实际上Rust为我们调用了一下方法：
+
+```rust
+*（y.deref())
+```
+
+*****不会无限递归替换，从*y 到 *(y.deref())只会发生一次
+
+#### 函数和方法中的隐式Deref转换
+
+```rust
+fn main(){
+	let s =String::from("hello world");
+	display（&s)
+}
+
+fn display(s:&str){
+	println!("{}",s);
+}
+```
+
+- String实现了Deref特征，可以在需要时自动被转换为&str类型
+- &s是一个&String类型，当它被传给display函数时，自动通过Deref转换成了&str
+- 必须使用&s的方式来触发Deref
+
+##### 连续的隐式Deref转换
+
+### 17.3 Drop释放资源
+
+#### Rust中的资源回收
+
+#### 手动回收
+
+不要手动回收
+
+#### 互斥的Copy和Drop
+
+我们无法为一个类型同时实现Copy和Drop特征，因为实现了Copy的特征会被编译器隐式的复制，因此非常难以预测析构函数执行的时间和频率。
+
+### 17.4 Rc与Arc
+
+通过引用计数的方式，允许一个数据资源在同一时刻拥有多个所有者
+
+这种实现机制就是**Rc**和**Arc**,前者适用于单线程，后者适用于多线程。
+
+#### Rc<T>
+
+通过记录一个数据被引用的次数来确定该数据是否正在被使用。
+
+当引用次数归零时，就代表该数据不再被使用，因此可以被清理释放
+
+```rust
+use std::rc::Rc;
+fn main() {
+    let a = Rc::new(String::from("hello, world"));
+    let b = Rc::clone(&a);
+
+    assert_eq!(2, Rc::strong_count(&a));
+    assert_eq!(Rc::strong_count(&a), Rc::strong_count(&b))
+}
+```
+
+这里的clone仅仅复制了智能指针并增加了引用计数，并没有克隆底层数据
+
+##### 观察引用计数的变化
+
+![image-20230922155209263](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230922155209263.png)
+
+##### 不可变引用
+
+要么存在多个不可变借用，要么只能存在一个可变借用
+
+##### 一个综合例子
+
+```rust
+use std::rc::Rc;
+
+struct Owner {
+    name: String,
+    // ...其它字段
+}
+
+struct Gadget {
+    id: i32,
+    owner: Rc<Owner>,
+    // ...其它字段
+}
+
+fn main() {
+    // 创建一个基于引用计数的 `Owner`.
+    let gadget_owner: Rc<Owner> = Rc::new(Owner {
+        name: "Gadget Man".to_string(),
+    });
+
+    // 创建两个不同的工具，它们属于同一个主人
+    let gadget1 = Gadget {
+        id: 1,
+        owner: Rc::clone(&gadget_owner),
+    };
+    let gadget2 = Gadget {
+        id: 2,
+        owner: Rc::clone(&gadget_owner),
+    };
+
+    // 释放掉第一个 `Rc<Owner>`
+    drop(gadget_owner);
+
+    // 尽管在上面我们释放了 gadget_owner，但是依然可以在这里使用 owner 的信息
+    // 原因是在 drop 之前，存在三个指向 Gadget Man 的智能指针引用，上面仅仅
+    // drop 掉其中一个智能指针引用，而不是 drop 掉 owner 数据，外面还有两个
+    // 引用指向底层的 owner 数据，引用计数尚未清零
+    // 因此 owner 数据依然可以被使用
+    println!("Gadget {} owned by {}", gadget1.id, gadget1.owner.name);
+    println!("Gadget {} owned by {}", gadget2.id, gadget2.owner.name);
+
+    // 在函数最后，`gadget1` 和 `gadget2` 也被释放，最终引用计数归零，随后底层
+    // 数据也被清理释放
+}
+```
+
+##### Rc简单总结
+
+- `Rc/Arc` 是不可变引用，你无法修改它指向的值，只能进行读取，如果要修改，需要配合后面章节的内部可变性 `RefCell` 或互斥锁 `Mutex`
+- 一旦最后一个拥有者消失，则资源会自动被回收，这个生命周期是在编译期就确定下来的
+- `Rc` 只能用于同一线程内部，想要用于线程之间的对象共享，你需要使用 `Arc`
+- `Rc<T>` 是一个智能指针，实现了 `Deref` 特征，因此你无需先解开 `Rc` 指针，再使用里面的 `T`，而是可以直接使用 `T`，例如上例中的 `gadget1.owner.name`
+
+#### 多线程无力的Rc< T >
+
+表面原因是 `Rc<T>` 不能在线程间安全的传递，实际上是因为它没有实现 `Send` 特征，而该特征是恰恰是多线程间传递数据的关键
+
+#### Arc （Atomic Rc）
+
+##### Arc的性能损耗
+
+原子化或者其他锁可以带来线程安全，但是都会伴随性能损耗，而且这种性能损耗还不小
+
+```rust
+use std::sync::Arc;
+use std::thread;
+fn main(){
+    let s  =Arc::new(String::from("多线程漫游者"));
+    for _ in 0..10{
+        let s= Arc::clone(&s);
+        let handle=thread::spawn(move||{
+            println!("{}",s)
+        });
+    }
+}
+```
+
+#### 总结
+
+两个都是只读的，如果想要实现内部数据可修改，必须配合内部可变性RefCell或者互斥锁,utex来一起使用
+
+### 17.5 Cell和RefCell
+
+Rust提供了Cell和Refcell用于内部可变性，简而言之，可以在拥有不可变引用的同时修改目标数据
+
+#### Cell
+
+Cell和RefCell在功能上没有区别，区别在于Cell<T>适用于T实现Copy的情况：
+
+```rust
+use std::cell::Cell;
+fn main() {
+  let c = Cell::new("asdf");
+  let one = c.get();
+  c.set("qwer");
+  let two = c.get();
+  println!("{},{}", one, two);
+}
+```
+
+- "asdf"是&str类型，它实现了Copy特征
+- c.get用来取值，c.set用来设置新值
+
+#### RefCell
+
+| Rust 规则                            | 智能指针带来的额外规则                  |
+| ------------------------------------ | --------------------------------------- |
+| 一个数据只有一个所有者               | `Rc/Arc`让一个数据可以拥有多个所有者    |
+| 要么多个不可变借用，要么一个可变借用 | `RefCell`实现编译期可变、不可变引用共存 |
+| 违背规则导致**编译错误**             | 违背规则导致**运行时`panic`**           |
+
+RefCell实际上并没有解决可变引用和引用可以共存的问题，只是将报错从编译器推迟到运行时，从编译器错误变成了panic异常：
+
+```rust
+use std::cell::RefCell;
+fn main(){
+	let s= RefCell::new(String::from("hello world"));
+    let s1=s.borrow();
+    let s2=s.borrow_mut();
+    println!("{s1},{s2}");
+}
+```
+
+##### 演示案例
+
+```rust
+use std::cell::RefCell;
+pub trait Messenger {
+    fn send(&self, msg: String);
+}
+
+pub struct MsgQueue {
+    msg_cache: RefCell<Vec<String>>,
+}
+
+impl Messenger for MsgQueue {
+    fn send(&self, msg: String) {
+        self.msg_cache.borrow_mut().push(msg)
+    }
+}
+
+fn main() {
+    let mq = MsgQueue {
+        msg_cache: RefCell::new(Vec::new()),
+    };
+    mq.send("hello, world".to_string());
+}
+```
+
+#### Rc+RefCell组合使用
+
+## 18 循环引用与自引用
+
+### 18.1 Weak与循环引用
+
+#### Weak
+
+弱引用，不保证引用关系依然存在
+
+它无法阻止所引用的内存值被释放掉
+
+##### weak和Rc对比
+
+| `Weak`                                          | `Rc`                                      |
+| ----------------------------------------------- | ----------------------------------------- |
+| 不计数                                          | 引用计数                                  |
+| 不拥有所有权                                    | 拥有值的所有权                            |
+| 不阻止值被释放(drop)                            | 所有权计数归零，才能 drop                 |
+| 引用的值存在返回 `Some`，不存在返回 `None`      | 引用的值必定存在                          |
+| 通过 `upgrade` 取到 `Option<Rc<T>>`，然后再取值 | 通过 `Deref` 自动解引用，取值无需任何操作 |
+
+对于父子引用关系，可以让父节点通过Rc来引用子节点，然后让子节点通过Weak来引用父节点
+
+##### weak总结
+
+因为 `Weak` 本身并不是很好理解，因此我们再来帮大家梳理总结下，然后再通过一个例子，来彻底掌握。
+
+`Weak` 通过 `use std::rc::Weak` 来引入，它具有以下特点:
+
+- 可访问，但没有所有权，不增加引用计数，因此不会影响被引用值的释放回收
+- 可由 `Rc<T>` 调用 `downgrade` 方法转换成 `Weak<T>`
+- `Weak<T>` 可使用 `upgrade` 方法转换成 `Option<Rc<T>>`，如果资源已经被释放，则 `Option` 的值是 `None`
+- 常用于解决循环引用的问题
+
+```rust
+use std::rc::Rc;
+fn main() {
+    // 创建Rc，持有一个值5
+    let five = Rc::new(5);
+
+    // 通过Rc，创建一个Weak指针
+    let weak_five = Rc::downgrade(&five);
+
+    // Weak引用的资源依然存在，取到值5
+    let strong_five: Option<Rc<_>> = weak_five.upgrade();
+    assert_eq!(*strong_five.unwrap(), 5);
+
+    // 手动释放资源`five`
+    drop(five);
+
+    // Weak引用的资源已不存在，因此返回None
+    let strong_five: Option<Rc<_>> = weak_five.upgrade();
+    assert_eq!(strong_five, None);
+}
+```
+
+#### 使用Weak解决循环引用
+
+### 18.2 结构体中的自引用
+
+#### 无法被移动的Pin
+
+它可以固定住一个值，防止该值在内存中被移动
+
+```rust
+use std::marker::PhantomPinned;
+use std::pin::Pin;
+use std::ptr::NonNull;
+
+// 下面是一个自引用数据结构体，因为 slice 字段是一个指针，指向了 data 字段
+// 我们无法使用普通引用来实现，因为违背了 Rust 的编译规则
+// 因此，这里我们使用了一个裸指针，通过 NonNull 来确保它不会为 null
+struct Unmovable {
+    data: String,
+    slice: NonNull<String>,
+    _pin: PhantomPinned,
+}
+
+impl Unmovable {
+    // 为了确保函数返回时数据的所有权不会被转移，我们将它放在堆上，唯一的访问方式就是通过指针
+    fn new(data: String) -> Pin<Box<Self>> {
+        let res = Unmovable {
+            data,
+            // 只有在数据到位时，才创建指针，否则数据会在开始之前就被转移所有权
+            slice: NonNull::dangling(),
+            _pin: PhantomPinned,
+        };
+        let mut boxed = Box::pin(res);
+
+        let slice = NonNull::from(&boxed.data);
+        // 这里其实安全的，因为修改一个字段不会转移整个结构体的所有权
+        unsafe {
+            let mut_ref: Pin<&mut Self> = Pin::as_mut(&mut boxed);
+            Pin::get_unchecked_mut(mut_ref).slice = slice;
+        }
+        boxed
+    }
+}
+
+fn main() {
+    let unmoved = Unmovable::new("hello".to_string());
+    // 只要结构体没有被转移，那指针就应该指向正确的位置，而且我们可以随意移动指针
+    let mut still_unmoved = unmoved;
+    assert_eq!(still_unmoved.slice, NonNull::from(&still_unmoved.data));
+
+    // 因为我们的类型没有实现 `Unpin` 特征，下面这段代码将无法编译
+    // let mut new_unmoved = Unmovable::new("world".to_string());
+    // std::mem::swap(&mut *still_unmoved, &mut *new_unmoved);
+}
+```
+
+#### 使用ouroboros
+
+```rust
+use ouroboros::self_referencing;
+
+#[self_referencing]
+struct SelfRef {
+    value: String,
+
+    #[borrows(value)]
+    pointer_to_value: &'this str,
+}
+
+fn main(){
+    let v = SelfRefBuilder {
+        value: "aaa".to_string(),
+        pointer_to_value_builder: |value: &String| value,
+    }.build();
+
+    // 借用value值
+    let s = v.borrow_value();
+    // 借用指针
+    let p = v.borrow_pointer_to_value();
+    // value值和指针指向的值相等
+    assert_eq!(s, *p);
+}
+```
+
+## 19 多线程并发编程
+
+### 19.1 并发和并行
+
+![img](https://pic1.zhimg.com/80/f37dd89173715d0e21546ea171c8a915_1440w.png)
+
+- 并发系统：如果某个系统支持两个或者多个动作的同时存在，那么这个系统就是一个并发系统
+
+- 并行系统：如果某个系统支持两个或者多个动作同时执行，那么这个系统就是一个并行系统
+
+### 19.2 使用多线程
+
+#### 多线程的风险
+
+由于多线程的代码是同时运行的，因此我们无法保证线程间的执行顺序，这会导致一些问题：
+
+- 竞态条件(race conditions)，多个线程以非一致性的顺序同时访问数据资源
+- 死锁(deadlocks)，两个线程都想使用某个资源，但是又都在等待对方释放资源后才能使用，结果最终都无法继续执行
+- 一些因为多线程导致的很隐晦的 BUG，难以复现和解决
+
+#### 创建线程
+
+使用thread::spawn 可以创建线程
+
+```rust
+use std::thread;
+use std::time::Duration;
+
+fn main() {
+    thread::spawn(|| {
+        for i in 1..10 {
+            println!("hi number {} from the spawned thread!", i);
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+
+    for i in 1..5 {
+        println!("hi number {} from the main thread!", i);
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+```
+
+#### 等待子线程的结束
+
+```rust
+use std::thread;
+use std::time::Duration;
+
+fn main() {
+    let handle = thread::spawn(|| {
+        for i in 1..5 {
+            println!("hi number {} from the spawned thread!", i);
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+
+    handle.join().unwrap();
+
+    for i in 1..5 {
+        println!("hi number {} from the main thread!", i);
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+```
+
+#### 在线程闭包中使用move
+
+```rust
+use std::thread;
+
+fn main(){
+    let v=vec![1,2,3];
+    
+    let handle=thread::spawn(move||{
+        println!("here is a vector:{:?}",v);
+    });
+    
+    handle.join().unwrap();
+}
+```
+
+```
+here is a vector:[1,2,3]
+```
+
+#### 线程是如何结束的
+
+Rust中的线程是如何结束的？线程的代码执行完，线程就会自动结束。
+
+但是如果线程中的代码不会执行完，可分两种进行讨论
+
+- 线程的任务是一个循环IO读取，任务流程类似：IO阻塞，等待读取新的数据-》读到数据，处理完成->继续堵塞等待->收到socket关闭的信号->结束线程
+
+- 线程的任务是一个循环，里面没有任何的阻塞，该线程将持续跑满一个CPU核心
+
+  ```rust
+  use std::thread;
+  use std::time::Duration;
+  fn main() {
+      // 创建一个线程A
+      let new_thread = thread::spawn(move || {
+          // 再创建一个线程B
+          thread::spawn(move || {
+              loop {
+                  println!("I am a new thread.");
+              }
+          })
+      });
+  
+      // 等待新创建的线程执行完成
+      new_thread.join().unwrap();
+      println!("Child thread is finish!");
+  
+      // 睡眠一段时间，看子线程创建的子线程是否还在运行
+      thread::sleep(Duration::from_millis(100));
+  }
+  ```
+
+#### 多线程的性能
+
+##### 创建线程的性能
+
+##### 创建多少线程合适
+
+##### 多线程的开销
+
+#### 线程屏障（Barrier）
+
+在Rust中，可以使用Barrier让多个线程都执行到某个点后，才继续一起往后执行：
+
+```rust
+use std::sync::{Arc, Barrier};
+use std::thread;
+
+fn main() {
+    let mut handles = Vec::with_capacity(6);
+    let barrier = Arc::new(Barrier::new(6));
+
+    for _ in 0..6 {
+        let b = barrier.clone();
+        handles.push(thread::spawn(move|| {
+            println!("before wait");
+            b.wait();
+            println!("after wait");
+        }));
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+}
+```
+
+```
+before wait
+before wait
+before wait
+before wait
+before wait
+before wait
+after wait
+after wait
+after wait
+after wait
+after wait
+after wait
+```
+
+### 19.3 线程同步 ：消息传递
+
+#### 消息通道
+
+Rust在标准库中提供了消息通道（channel）
+
+- 发送者
+- 接收者
+
+#### 多发送者，单接收者
+
+```rust
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    // 创建一个消息通道, 返回一个元组：(发送者，接收者)
+    let (tx, rx) = mpsc::channel();
+
+    // 创建线程，并发送消息
+    thread::spawn(move || {
+        // 发送一个数字1, send方法返回Result<T,E>，通过unwrap进行快速错误处理
+        tx.send(1).unwrap();
+
+        // 下面代码将报错，因为编译器自动推导出通道传递的值是i32类型，那么Option<i32>类型将产生不匹配错误
+        // tx.send(Some(1)).unwrap()
+    });
+
+    // 在主线程中接收子线程发送的消息并输出
+    println!("receive {}", rx.recv().unwrap());
+}
+```
+
+- `tx`,`rx`对应发送者和接收者，它们的类型由编译器自动推导: `tx.send(1)`发送了整数，因此它们分别是`mpsc::Sender<i32>`和`mpsc::Receiver<i32>`类型，需要注意，由于内部是泛型实现，一旦类型被推导确定，该通道就只能传递对应类型的值, 例如此例中非`i32`类型的值将导致编译错误
+- 接收消息的操作`rx.recv()`会阻塞当前线程，直到读取到值，或者通道被关闭
+- 需要使用`move`将`tx`的所有权转移到子线程的闭包中
+
+##### 不阻塞的try_recv方法
+
+try_recv尝试接受一次消息，该方法并不会阻塞线程
+
+```rust
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        tx.send(1).unwrap();
+    });
+
+    println!("receive {:?}", rx.try_recv());
+}
+```
+
+![image-20230925222206981](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230925222206981.png)
+
+#### 传输具有所有权的数据
+
+- 若值得类型实现了Copy特性，则直接复制一份该值，然后传输过去
+- 若值没有实现Copy，则它得所有权会被转移给接收端，在发送端继续使用该值将报错
+
+#### 使用for进行循环接受
+
+![image-20230925223321913](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230925223321913.png)
+
+##### 使用多发送者
+
+由于子线程会拿走发送者得所有权，因此我们必须对发送者进行克隆，然后让每个线程都拿走它得一份拷贝
+
+```rust
+use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = mpsc::channel();
+    let tx1 = tx.clone();
+    thread::spawn(move || {
+        tx.send(String::from("hi from raw tx")).unwrap();
+    });
+
+    thread::spawn(move || {
+        tx1.send(String::from("hi from cloned tx")).unwrap();
+    });
+
+    for received in rx {
+        println!("Got: {}", received);
+    }
+}
+```
+
+- 需要所有的发送者都被`drop`掉后，接收者`rx`才会收到错误，进而跳出`for`循环，最终结束主线程
+- 这里虽然用了`clone`但是并不会影响性能，因为它并不在热点代码路径中，仅仅会被执行一次
+- 由于两个子线程谁先创建完成是未知的，因此哪条消息先发送也是未知的，最终主线程的输出顺序也不确定
+
+#### 消息顺序
+
+FIFO原则（先进先出）
+
+#### 同步和异步通道
+
+##### 异步通道
+
+无论接收者是否正在接受消息，消息发送者在发送消息时都不会阻塞
+
+##### 同步通道
+
+发送消息是阻塞得，只有在消息被接收后才解除阻塞
+
+![image-20230925223911718](C:\Users\xpro\AppData\Roaming\Typora\typora-user-images\image-20230925223911718.png)
 
